@@ -11,6 +11,9 @@
 		D2028A162EC6027E005D4D4E /* PowerZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A122EC5FE4B005D4D4E /* PowerZone.swift */; };
 		D2028A172EC60284005D4D4E /* StravaAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A132EC5FE77005D4D4E /* StravaAuthView.swift */; };
 		D2028A182EC60288005D4D4E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A142EC5FF94005D4D4E /* HomeView.swift */; };
+		D20A3F342EC78457003FD86B /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20A3F332EC78455003FD86B /* MainTabView.swift */; };
+		D20A3F362EC7848C003FD86B /*  TTEView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20A3F352EC7848B003FD86B /*  TTEView.swift */; };
+		D20A3F382EC78684003FD86B /* CyclistProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20A3F372EC78682003FD86B /* CyclistProfileView.swift */; };
 		D27CBDCE2EC683330059E87D /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDCD2EC683270059E87D /* UserProfile.swift */; };
 		D27CBDD02EC683800059E87D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDCF2EC6837C0059E87D /* SettingsView.swift */; };
 		D27CBDD22EC685050059E87D /* PowerCurveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDD12EC684F80059E87D /* PowerCurveView.swift */; };
@@ -41,6 +44,9 @@
 		D2028A122EC5FE4B005D4D4E /* PowerZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerZone.swift; sourceTree = "<group>"; };
 		D2028A132EC5FE77005D4D4E /* StravaAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthView.swift; sourceTree = "<group>"; };
 		D2028A142EC5FF94005D4D4E /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		D20A3F332EC78455003FD86B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		D20A3F352EC7848B003FD86B /*  TTEView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = " TTEView.swift"; sourceTree = "<group>"; };
+		D20A3F372EC78682003FD86B /* CyclistProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyclistProfileView.swift; sourceTree = "<group>"; };
 		D27CBDCD2EC683270059E87D /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		D27CBDCF2EC6837C0059E87D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D27CBDD12EC684F80059E87D /* PowerCurveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerCurveView.swift; sourceTree = "<group>"; };
@@ -138,6 +144,9 @@
 		D2028A0E2EC5FC96005D4D4E /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D20A3F372EC78682003FD86B /* CyclistProfileView.swift */,
+				D20A3F352EC7848B003FD86B /*  TTEView.swift */,
+				D20A3F332EC78455003FD86B /* MainTabView.swift */,
 				D27CBDD12EC684F80059E87D /* PowerCurveView.swift */,
 				D27CBDCF2EC6837C0059E87D /* SettingsView.swift */,
 				D2028A142EC5FF94005D4D4E /* HomeView.swift */,
@@ -312,6 +321,9 @@
 				D2028A182EC60288005D4D4E /* HomeView.swift in Sources */,
 				D2028A162EC6027E005D4D4E /* PowerZone.swift in Sources */,
 				D27CBDD22EC685050059E87D /* PowerCurveView.swift in Sources */,
+				D20A3F362EC7848C003FD86B /*  TTEView.swift in Sources */,
+				D20A3F382EC78684003FD86B /* CyclistProfileView.swift in Sources */,
+				D20A3F342EC78457003FD86B /* MainTabView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

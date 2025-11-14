@@ -8,7 +8,15 @@ struct PowerCurveView: View {
     @State private var errorMessage: String = ""
     @State private var showList = false
     @State private var selectedPoint: PowerPoint? = nil
-    @State private var zoomLevel: CGFloat = 1.0
+    @State private var zoomLevel: Int = 0 // 0=full, 1=medium, 2=close
+    
+    var zoomRanges: [(min: Int, max: Int, label: String)] {
+        [
+            (5, 21600, "5s - 6h"),
+            (30, 3600, "30s - 1h"),
+            (60, 1200, "1m - 20m")
+        ]
+    }
     
     var body: some View {
         VStack(spacing: 16) {
@@ -41,21 +49,36 @@ struct PowerCurveView: View {
                     .frame(height: 200)
             } else {
                 VStack(spacing: 8) {
-                    PowerCurveGraph(data: powerData, ftp: zonesManager.ftp, selectedPoint: $selectedPoint, zonesManager: zonesManager)
-                        .frame(height: 200 * zoomLevel)
+                    PowerCurveGraph(
+                        data: powerData,
+                        ftp: zonesManager.ftp,
+                        selectedPoint: $selectedPoint,
+                        zonesManager: zonesManager,
+                        minDuration: zoomRanges[zoomLevel].min,
+                        maxDuration: zoomRanges[zoomLevel].max
+                    )
+                    .frame(height: 200)
                     
                     HStack {
-                        Button(action: { if zoomLevel > 0.5 { zoomLevel -= 0.25 } }) {
+                        Button(action: { if zoomLevel > 0 { zoomLevel -= 1 } }) {
                             Image(systemName: "minus.magnifyingglass")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(zoomLevel > 0 ? .primary : .secondary)
                         }
+                        .disabled(zoomLevel == 0)
                         
                         Spacer()
                         
-                        Button(action: { if zoomLevel < 2.0 { zoomLevel += 0.25 } }) {
+                        Text(zoomRanges[zoomLevel].label)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Button(action: { if zoomLevel < 2 { zoomLevel += 1 } }) {
                             Image(systemName: "plus.magnifyingglass")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(zoomLevel < 2 ? .primary : .secondary)
                         }
+                        .disabled(zoomLevel == 2)
                     }
                     .padding(.horizontal)
                 }
@@ -111,26 +134,32 @@ struct PowerCurveGraph: View {
     let ftp: Int
     @Binding var selectedPoint: PowerPoint?
     let zonesManager: ZonesManager
+    let minDuration: Int
+    let maxDuration: Int
+    
+    var filteredData: [PowerPoint] {
+        data.filter { $0.duration >= minDuration && $0.duration <= maxDuration && $0.watts > 0 }
+    }
     
     var maxWatts: CGFloat {
-        let actualMax = CGFloat(data.map { $0.watts }.max() ?? 1)
-        let idealMax = CGFloat(calculateIdealPower(duration: 5, ftp: ftp))
-        return max(actualMax, idealMax) * 1.1
+        let actualMax = CGFloat(filteredData.map { $0.watts }.max() ?? 1)
+        let idealMax = CGFloat(calculateIdealPower(duration: minDuration, ftp: ftp))
+        return max(actualMax, idealMax) * 1.05
     }
     
     var minWatts: CGFloat {
-        let actualMin = CGFloat(data.map { $0.watts }.filter { $0 > 0 }.min() ?? 0)
-        let idealMin = CGFloat(calculateIdealPower(duration: 21600, ftp: ftp))
-        return min(actualMin, idealMin) * 0.9
+        let actualMin = CGFloat(filteredData.map { $0.watts }.min() ?? 0)
+        let idealMin = CGFloat(calculateIdealPower(duration: maxDuration, ftp: ftp))
+        return min(actualMin, idealMin) * 0.95
     }
     
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let height = geometry.size.height
-            let padding: CGFloat = 40
+            let padding: CGFloat = 30
             let graphWidth = width - padding
-            let graphHeight = height - 30
+            let graphHeight = height - 25
             
             ZStack {
                 // Zone backgrounds (Friel 5 zones)
@@ -154,28 +183,28 @@ struct PowerCurveGraph: View {
                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 }
                 
-                // Y-axis labels
+                // Y-axis labels (compact)
                 ForEach(0..<5) { i in
                     let wattValue = Int(minWatts + (maxWatts - minWatts) * CGFloat(i) / 4.0)
                     let y = graphHeight - (CGFloat(i) / 4.0 * graphHeight)
                     Text("\(wattValue)")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8))
                         .foregroundColor(.secondary)
-                        .position(x: 20, y: y)
+                        .position(x: 15, y: y)
                 }
                 
-                // Ideal curve (black)
+                // Ideal curve (black) - extended to full range
                 Path { path in
-                    let validData = data.filter { $0.watts > 0 }
-                    guard validData.count > 1 else { return }
-                    
-                    for (index, point) in validData.enumerated() {
-                        let idealWatts = calculateIdealPower(duration: point.duration, ftp: ftp)
-                        let x = padding + logPosition(duration: point.duration) * graphWidth
+                    let steps = 50
+                    for i in 0...steps {
+                        let t = Double(minDuration) * pow(Double(maxDuration) / Double(minDuration), Double(i) / Double(steps))
+                        let duration = Int(t)
+                        let idealWatts = calculateIdealPower(duration: duration, ftp: ftp)
+                        let x = padding + logPosition(duration: duration) * graphWidth
                         let normalizedWatts = (CGFloat(idealWatts) - minWatts) / (maxWatts - minWatts)
                         let y = graphHeight - (normalizedWatts * graphHeight)
                         
-                        if index == 0 {
+                        if i == 0 {
                             path.move(to: CGPoint(x: x, y: y))
                         } else {
                             path.addLine(to: CGPoint(x: x, y: y))
@@ -186,10 +215,9 @@ struct PowerCurveGraph: View {
                 
                 // Actual curve (orange)
                 Path { path in
-                    let validData = data.filter { $0.watts > 0 }
-                    guard validData.count > 1 else { return }
+                    guard filteredData.count > 1 else { return }
                     
-                    for (index, point) in validData.enumerated() {
+                    for (index, point) in filteredData.enumerated() {
                         let x = padding + logPosition(duration: point.duration) * graphWidth
                         let normalizedWatts = (CGFloat(point.watts) - minWatts) / (maxWatts - minWatts)
                         let y = graphHeight - (normalizedWatts * graphHeight)
@@ -204,14 +232,14 @@ struct PowerCurveGraph: View {
                 .stroke(Color.orange, lineWidth: 3)
                 
                 // Data points (tappable)
-                ForEach(data.filter { $0.watts > 0 }) { point in
+                ForEach(filteredData) { point in
                     let x = padding + logPosition(duration: point.duration) * graphWidth
                     let normalizedWatts = (CGFloat(point.watts) - minWatts) / (maxWatts - minWatts)
                     let y = graphHeight - (normalizedWatts * graphHeight)
                     
                     Circle()
                         .fill(Color.orange)
-                        .frame(width: 12, height: 12)
+                        .frame(width: 10, height: 10)
                         .position(x: x, y: y)
                         .onTapGesture {
                             selectedPoint = point
@@ -240,14 +268,13 @@ struct PowerCurveGraph: View {
                     }
                 }
                 
-                // X-axis labels
-                let labelsToShow = ["5s", "30s", "2m", "10m", "30m", "2h", "6h"]
-                ForEach(data.filter { labelsToShow.contains($0.label) && $0.watts > 0 }) { point in
+                // X-axis labels (dynamic based on zoom)
+                ForEach(filteredData) { point in
                     let x = padding + logPosition(duration: point.duration) * graphWidth
                     Text(point.label)
-                        .font(.system(size: 8))
+                        .font(.system(size: 7))
                         .foregroundColor(.secondary)
-                        .position(x: x, y: height - 10)
+                        .position(x: x, y: height - 8)
                 }
             }
             .onTapGesture {
@@ -257,8 +284,8 @@ struct PowerCurveGraph: View {
     }
     
     func logPosition(duration: Int) -> CGFloat {
-        let minLog = log10(5.0)
-        let maxLog = log10(21600.0)
+        let minLog = log10(Double(minDuration))
+        let maxLog = log10(Double(maxDuration))
         let durationLog = log10(Double(duration))
         return CGFloat((durationLog - minLog) / (maxLog - minLog))
     }
@@ -298,8 +325,9 @@ struct PowerCurveGraph: View {
             let power = 260 - (260 - 250) * (t - 1200) / 2400
             return Int(power * ratio)
         } else {
-            let power = 250 - 10 * log10(t / 3600)
-            return Int(power * ratio)
+            // Extended for long durations (2h+)
+            let power = 250 - 15 * log10(t / 3600)
+            return max(Int(power * ratio), Int(200 * ratio))
         }
     }
 }

@@ -4,7 +4,6 @@ struct HomeView: View {
     @EnvironmentObject var zonesManager: ZonesManager
     @EnvironmentObject var stravaService: StravaService
     @EnvironmentObject var userProfile: UserProfile
-    @State private var showSettings = false
     
     var body: some View {
         NavigationView {
@@ -24,19 +23,6 @@ struct HomeView: View {
                 .padding()
             }
             .navigationTitle("Wattlet")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: { showSettings = true }) {
-                        Image(systemName: "gearshape")
-                    }
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(userProfile)
-                    .environmentObject(zonesManager)
-                    .environmentObject(stravaService)
-            }
             .task {
                 if UserDefaults.standard.value(forKey: "user_ftp") == nil {
                     if let stravaFTP = await stravaService.fetchAthleteProfile() {

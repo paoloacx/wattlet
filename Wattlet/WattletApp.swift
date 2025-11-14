@@ -9,7 +9,7 @@ struct WattletApp: App {
     var body: some Scene {
         WindowGroup {
             if stravaService.isAuthenticated {
-                HomeView()
+                MainTabView()
                     .environmentObject(stravaService)
                     .environmentObject(zonesManager)
                     .environmentObject(userProfile)
