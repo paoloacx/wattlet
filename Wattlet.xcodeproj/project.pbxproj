@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D2028A152EC60272005D4D4E /* StravaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A112EC5FDE0005D4D4E /* StravaService.swift */; };
+		D2028A162EC6027E005D4D4E /* PowerZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A122EC5FE4B005D4D4E /* PowerZone.swift */; };
+		D2028A172EC60284005D4D4E /* StravaAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A132EC5FE77005D4D4E /* StravaAuthView.swift */; };
+		D2028A182EC60288005D4D4E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2028A142EC5FF94005D4D4E /* HomeView.swift */; };
+		D27CBDCE2EC683330059E87D /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDCD2EC683270059E87D /* UserProfile.swift */; };
+		D27CBDD02EC683800059E87D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDCF2EC6837C0059E87D /* SettingsView.swift */; };
+		D27CBDD22EC685050059E87D /* PowerCurveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27CBDD12EC684F80059E87D /* PowerCurveView.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D20289EE2EC5FB18005D4D4E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,11 +37,31 @@
 		D20289E02EC5FB15005D4D4E /* Wattlet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wattlet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D20289ED2EC5FB18005D4D4E /* WattletTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WattletTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D20289F72EC5FB18005D4D4E /* WattletUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WattletUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D2028A112EC5FDE0005D4D4E /* StravaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaService.swift; sourceTree = "<group>"; };
+		D2028A122EC5FE4B005D4D4E /* PowerZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerZone.swift; sourceTree = "<group>"; };
+		D2028A132EC5FE77005D4D4E /* StravaAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthView.swift; sourceTree = "<group>"; };
+		D2028A142EC5FF94005D4D4E /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		D27CBDCD2EC683270059E87D /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		D27CBDCF2EC6837C0059E87D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D27CBDD12EC684F80059E87D /* PowerCurveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerCurveView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D2028A1A2EC606C9005D4D4E /* Exceptions for "Wattlet" folder in "Wattlet" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D20289DF2EC5FB15005D4D4E /* Wattlet */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D20289E22EC5FB15005D4D4E /* Wattlet */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D2028A1A2EC606C9005D4D4E /* Exceptions for "Wattlet" folder in "Wattlet" target */,
+			);
 			path = Wattlet;
 			sourceTree = "<group>";
 		};
@@ -76,6 +106,10 @@
 			isa = PBXGroup;
 			children = (
 				D20289E22EC5FB15005D4D4E /* Wattlet */,
+				D2028A102EC5FD05005D4D4E /* ViewModels */,
+				D2028A0E2EC5FC96005D4D4E /* Views */,
+				D2028A0D2EC5FC8F005D4D4E /* Models */,
+				D2028A0F2EC5FCAC005D4D4E /* Services */,
 				D20289F02EC5FB18005D4D4E /* WattletTests */,
 				D20289FA2EC5FB18005D4D4E /* WattletUITests */,
 				D20289E12EC5FB15005D4D4E /* Products */,
@@ -90,6 +124,41 @@
 				D20289F72EC5FB18005D4D4E /* WattletUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D2028A0D2EC5FC8F005D4D4E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				D27CBDCD2EC683270059E87D /* UserProfile.swift */,
+				D2028A122EC5FE4B005D4D4E /* PowerZone.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D2028A0E2EC5FC96005D4D4E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D27CBDD12EC684F80059E87D /* PowerCurveView.swift */,
+				D27CBDCF2EC6837C0059E87D /* SettingsView.swift */,
+				D2028A142EC5FF94005D4D4E /* HomeView.swift */,
+				D2028A132EC5FE77005D4D4E /* StravaAuthView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D2028A0F2EC5FCAC005D4D4E /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				D2028A112EC5FDE0005D4D4E /* StravaService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D2028A102EC5FD05005D4D4E /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -236,6 +305,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2028A172EC60284005D4D4E /* StravaAuthView.swift in Sources */,
+				D27CBDD02EC683800059E87D /* SettingsView.swift in Sources */,
+				D2028A152EC60272005D4D4E /* StravaService.swift in Sources */,
+				D27CBDCE2EC683330059E87D /* UserProfile.swift in Sources */,
+				D2028A182EC60288005D4D4E /* HomeView.swift in Sources */,
+				D2028A162EC6027E005D4D4E /* PowerZone.swift in Sources */,
+				D27CBDD22EC685050059E87D /* PowerCurveView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -398,6 +474,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Wattlet/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -408,7 +486,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
@@ -442,6 +520,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Wattlet/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -452,7 +532,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
