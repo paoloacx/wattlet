@@ -22,6 +22,7 @@ struct HomeView: View {
                 }
                 .padding()
             }
+            .background(GrainBackground())
             .navigationTitle("Wattlet")
             .task {
                 if UserDefaults.standard.value(forKey: "user_ftp") == nil {
@@ -41,9 +42,15 @@ struct FTPCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Current FTP")
-                .font(.headline)
-                .foregroundColor(.secondary)
+            HStack(spacing: 4) {
+                Text("Current FTP")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                HelpButton(
+                    title: "Functional Threshold Power",
+                    explanation: "The maximum power you can sustain for approximately one hour. It's a key metric for training zones and performance tracking."
+                )
+            }
             
             HStack(alignment: .firstTextBaseline) {
                 Text("\(ftp)")
@@ -54,9 +61,7 @@ struct FTPCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.gray.opacity(0.1))
-        .cornerRadius(16)
+        .cardStyle()
     }
 }
 
@@ -116,9 +121,7 @@ struct ZonesConfigurableCard: View {
                     .environmentObject(zonesManager)
             }
         }
-        .padding()
-        .background(.gray.opacity(0.1))
-        .cornerRadius(16)
+        .cardStyle()
     }
 }
 
@@ -128,7 +131,6 @@ struct FusedZonesView: View {
     var fusedItems: [(type: String, name: String, watts: Int, color: Color, description: String)] {
         var items: [(type: String, name: String, watts: Int, color: Color, description: String)] = []
         
-        // Add zones from selected systems
         for system in zonesManager.selectedSystems {
             let zones: [PowerZone]
             let prefix: String
@@ -155,14 +157,12 @@ struct FusedZonesView: View {
             }
         }
         
-        // Add thresholds
         if zonesManager.showVentilatoryThresholds {
             items.append((type: "threshold", name: "VT1/LT1", watts: zonesManager.vt1Watts, color: .blue, description: "\(zonesManager.vt1Watts)W"))
             items.append((type: "threshold", name: "VT2/LT2", watts: zonesManager.vt2Watts, color: .red, description: "\(zonesManager.vt2Watts)W"))
         }
         items.append((type: "threshold", name: "FTP", watts: zonesManager.ftp, color: .orange, description: "\(zonesManager.ftp)W"))
         
-        // Sort by watts
         return items.sorted { $0.watts < $1.watts }
     }
     

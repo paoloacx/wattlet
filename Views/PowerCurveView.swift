@@ -8,7 +8,8 @@ struct PowerCurveView: View {
     @State private var errorMessage: String = ""
     @State private var showList = false
     @State private var selectedPoint: PowerPoint? = nil
-    @State private var zoomLevel: Int = 0 // 0=full, 1=medium, 2=close
+    @State private var zoomLevel: Int = 0
+    @State private var showYLabels: Bool = true
     
     var zoomRanges: [(min: Int, max: Int, label: String)] {
         [
@@ -25,9 +26,15 @@ struct PowerCurveView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                 Spacer()
-                Text("12 weeks")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text("12 weeks")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HelpButton(
+                        title: "Time Range",
+                        explanation: "Your power curve is calculated from activities in the last 12 weeks to reflect your current fitness level."
+                    )
+                }
             }
             
             if isLoading {
@@ -48,40 +55,39 @@ struct PowerCurveView: View {
                     .foregroundColor(.secondary)
                     .frame(height: 200)
             } else {
-                VStack(spacing: 8) {
-                    PowerCurveGraph(
-                        data: powerData,
-                        ftp: zonesManager.ftp,
-                        selectedPoint: $selectedPoint,
-                        zonesManager: zonesManager,
-                        minDuration: zoomRanges[zoomLevel].min,
-                        maxDuration: zoomRanges[zoomLevel].max
-                    )
-                    .frame(height: 200)
-                    
-                    HStack {
-                        Button(action: { if zoomLevel > 0 { zoomLevel -= 1 } }) {
-                            Image(systemName: "minus.magnifyingglass")
-                                .foregroundColor(zoomLevel > 0 ? .primary : .secondary)
-                        }
-                        .disabled(zoomLevel == 0)
-                        
-                        Spacer()
-                        
-                        Text(zoomRanges[zoomLevel].label)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        Button(action: { if zoomLevel < 2 { zoomLevel += 1 } }) {
-                            Image(systemName: "plus.magnifyingglass")
-                                .foregroundColor(zoomLevel < 2 ? .primary : .secondary)
-                        }
-                        .disabled(zoomLevel == 2)
+                PowerCurveGraph(
+                    data: powerData,
+                    ftp: zonesManager.ftp,
+                    selectedPoint: $selectedPoint,
+                    zonesManager: zonesManager,
+                    minDuration: zoomRanges[zoomLevel].min,
+                    maxDuration: zoomRanges[zoomLevel].max,
+                    showYLabels: showYLabels
+                )
+                .frame(height: 200)
+                
+                HStack {
+                    Button(action: { if zoomLevel > 0 { zoomLevel -= 1 } }) {
+                        Image(systemName: "minus.magnifyingglass")
+                            .foregroundColor(zoomLevel > 0 ? .primary : .secondary)
                     }
-                    .padding(.horizontal)
+                    .disabled(zoomLevel == 0)
+                    
+                    Spacer()
+                    
+                    Text(zoomRanges[zoomLevel].label)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button(action: { if zoomLevel < 2 { zoomLevel += 1 } }) {
+                        Image(systemName: "plus.magnifyingglass")
+                            .foregroundColor(zoomLevel < 2 ? .primary : .secondary)
+                    }
+                    .disabled(zoomLevel == 2)
                 }
+                .padding(.top, 24)
                 
                 Button(action: { showList.toggle() }) {
                     HStack {
@@ -99,9 +105,7 @@ struct PowerCurveView: View {
                 }
             }
         }
-        .padding()
-        .background(.gray.opacity(0.1))
-        .cornerRadius(16)
+        .cardStyle()
         .task {
             await loadPowerCurve()
         }
@@ -136,6 +140,7 @@ struct PowerCurveGraph: View {
     let zonesManager: ZonesManager
     let minDuration: Int
     let maxDuration: Int
+    let showYLabels: Bool
     
     var filteredData: [PowerPoint] {
         data.filter { $0.duration >= minDuration && $0.duration <= maxDuration && $0.watts > 0 }
@@ -157,9 +162,9 @@ struct PowerCurveGraph: View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let height = geometry.size.height
-            let padding: CGFloat = 30
+            let padding: CGFloat = 10
             let graphWidth = width - padding
-            let graphHeight = height - 25
+            let graphHeight = height - 10
             
             ZStack {
                 // Zone backgrounds (Friel 5 zones)
@@ -181,16 +186,6 @@ struct PowerCurveGraph: View {
                         path.addLine(to: CGPoint(x: width, y: y))
                     }
                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                }
-                
-                // Y-axis labels (compact)
-                ForEach(0..<5) { i in
-                    let wattValue = Int(minWatts + (maxWatts - minWatts) * CGFloat(i) / 4.0)
-                    let y = graphHeight - (CGFloat(i) / 4.0 * graphHeight)
-                    Text("\(wattValue)")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
-                        .position(x: 15, y: y)
                 }
                 
                 // Ideal curve (black) - extended to full range
@@ -267,15 +262,6 @@ struct PowerCurveGraph: View {
                         .position(x: x, y: y - 25)
                     }
                 }
-                
-                // X-axis labels (dynamic based on zoom)
-                ForEach(filteredData) { point in
-                    let x = padding + logPosition(duration: point.duration) * graphWidth
-                    Text(point.label)
-                        .font(.system(size: 7))
-                        .foregroundColor(.secondary)
-                        .position(x: x, y: height - 8)
-                }
             }
             .onTapGesture {
                 selectedPoint = nil
@@ -295,40 +281,28 @@ struct PowerCurveGraph: View {
         let ftpDouble = Double(ftp)
         let ratio = ftpDouble / 250.0
         
-        if t <= 1 {
-            return Int(900 * ratio)
-        } else if t <= 5 {
-            let power = 900 - (900 - 846) * (t - 1) / 4
-            return Int(power * ratio)
-        } else if t <= 10 {
-            let power = 846 - (846 - 742) * (t - 5) / 5
-            return Int(power * ratio)
-        } else if t <= 30 {
-            let power = 742 - (742 - 569) * (t - 10) / 20
-            return Int(power * ratio)
-        } else if t <= 60 {
-            let power = 569 - (569 - 460) * (t - 30) / 30
-            return Int(power * ratio)
-        } else if t <= 120 {
-            let power = 460 - (460 - 371) * (t - 60) / 60
-            return Int(power * ratio)
-        } else if t <= 300 {
-            let power = 371 - (371 - 301) * (t - 120) / 180
-            return Int(power * ratio)
-        } else if t <= 600 {
-            let power = 301 - (301 - 274) * (t - 300) / 300
-            return Int(power * ratio)
-        } else if t <= 1200 {
-            let power = 274 - (274 - 260) * (t - 600) / 600
-            return Int(power * ratio)
-        } else if t <= 3600 {
-            let power = 260 - (260 - 250) * (t - 1200) / 2400
-            return Int(power * ratio)
-        } else {
-            // Extended for long durations (2h+)
-            let power = 250 - 15 * log10(t / 3600)
-            return max(Int(power * ratio), Int(200 * ratio))
+        // Datos de referencia para FTP 250
+        let points: [(Double, Double)] = [
+            (1, 900), (2, 877), (3, 856), (5, 819), (10, 742),
+            (15, 683), (20, 637), (30, 569), (45, 498), (60, 459),
+            (90, 403), (120, 371), (180, 334), (300, 301), (900, 265),
+            (1200, 260), (1800, 255), (2700, 251), (3600, 250), (21600, 220)
+        ]
+        
+        // Encontrar el segmento correcto e interpolar
+        for i in 0..<(points.count - 1) {
+            if t <= points[i + 1].0 {
+                let t1 = points[i].0
+                let t2 = points[i + 1].0
+                let p1 = points[i].1
+                let p2 = points[i + 1].1
+                
+                let power = p1 + (p2 - p1) * (t - t1) / (t2 - t1)
+                return Int(power * ratio)
+            }
         }
+        
+        return Int(220 * ratio)
     }
 }
 
@@ -383,6 +357,25 @@ struct PowerCurveList: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+        }
+    }
+}
+
+struct HelpButton: View {
+    let title: String
+    let explanation: String
+    @State private var showHelp = false
+    
+    var body: some View {
+        Button(action: { showHelp.toggle() }) {
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .alert(title, isPresented: $showHelp) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(explanation)
         }
     }
 }
