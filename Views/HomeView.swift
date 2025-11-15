@@ -17,13 +17,17 @@ struct HomeView: View {
                     
                     ZonesConfigurableCard()
                         .environmentObject(zonesManager)
-                    
-                    Spacer()
+                                        
+                        FatOxidationCard()
+                          .environmentObject(zonesManager)
+                          .environmentObject(userProfile)
+                                        
+                        Spacer()
                 }
                 .padding()
             }
             .background(GrainBackground())
-            .navigationTitle("Wattlet")
+            .navigationTitle("Power & HR Zones")
             .task {
                 if UserDefaults.standard.value(forKey: "user_ftp") == nil {
                     if let stravaFTP = await stravaService.fetchAthleteProfile() {
@@ -281,5 +285,159 @@ struct ZoneRow: View {
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+struct FatOxidationCard: View {
+    @EnvironmentObject var zonesManager: ZonesManager
+    @EnvironmentObject var userProfile: UserProfile
+    
+    var fatMaxWatts: Int {
+        // FatMax typically around 60-65% of FTP, close to VT1
+        let vt1 = zonesManager.vt1Watts > 0 ? zonesManager.vt1Watts : Int(Double(zonesManager.ftp) * 0.75)
+        return Int(Double(vt1) * 0.85) // Slightly below VT1
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Fat Oxidation Curve")
+                    .font(.headline)
+                Spacer()
+                HelpButton(
+                    title: "Fat Oxidation",
+                    explanation: "Shows how your body uses fat vs carbohydrates at different intensities. FatMax is the intensity where you burn the most fat per minute. Training at FatMax improves metabolic efficiency."
+                )
+            }
+            
+            // Fat Oxidation Graph
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let height: CGFloat = 120
+                
+                ZStack(alignment: .bottomLeading) {
+                    // Background grid
+                    Path { path in
+                        for i in 0...4 {
+                            let y = height * CGFloat(i) / 4
+                            path.move(to: CGPoint(x: 0, y: y))
+                            path.addLine(to: CGPoint(x: width, y: y))
+                        }
+                    }
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                    
+                    // Fat curve (bell curve peaking around 60% intensity)
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: height * 0.7))
+                        path.addCurve(
+                            to: CGPoint(x: width * 0.35, y: height * 0.15),
+                            control1: CGPoint(x: width * 0.15, y: height * 0.5),
+                            control2: CGPoint(x: width * 0.25, y: height * 0.2)
+                        )
+                        path.addCurve(
+                            to: CGPoint(x: width * 0.85, y: height * 0.95),
+                            control1: CGPoint(x: width * 0.5, y: height * 0.1),
+                            control2: CGPoint(x: width * 0.7, y: height * 0.8)
+                        )
+                        path.addLine(to: CGPoint(x: width, y: height))
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [.yellow.opacity(0.6), .yellow.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    
+                    // Fat curve line
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: height * 0.7))
+                        path.addCurve(
+                            to: CGPoint(x: width * 0.35, y: height * 0.15),
+                            control1: CGPoint(x: width * 0.15, y: height * 0.5),
+                            control2: CGPoint(x: width * 0.25, y: height * 0.2)
+                        )
+                        path.addCurve(
+                            to: CGPoint(x: width * 0.85, y: height * 0.95),
+                            control1: CGPoint(x: width * 0.5, y: height * 0.1),
+                            control2: CGPoint(x: width * 0.7, y: height * 0.8)
+                        )
+                    }
+                    .stroke(Color.yellow, lineWidth: 2)
+                    
+                    // Carb curve (increasing line)
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: height * 0.95))
+                        path.addCurve(
+                            to: CGPoint(x: width, y: height * 0.1),
+                            control1: CGPoint(x: width * 0.3, y: height * 0.85),
+                            control2: CGPoint(x: width * 0.6, y: height * 0.3)
+                        )
+                    }
+                    .stroke(Color.blue, lineWidth: 2)
+                    
+                    // FatMax marker
+                    Rectangle()
+                        .fill(Color.orange)
+                        .frame(width: 2, height: height)
+                        .position(x: width * 0.35, y: height / 2)
+                    
+                    // VT1 marker if available
+                    if zonesManager.showVentilatoryThresholds {
+                        Rectangle()
+                            .fill(Color.blue.opacity(0.5))
+                            .frame(width: 1, height: height)
+                            .position(x: width * 0.45, y: height / 2)
+                    }
+                }
+            }
+            .frame(height: 120)
+            
+            // Labels
+            HStack {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.yellow)
+                        .frame(width: 8, height: 8)
+                    Text("Fat")
+                        .font(.caption2)
+                }
+                
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 8, height: 8)
+                    Text("Carbs")
+                        .font(.caption2)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Rectangle()
+                        .fill(Color.orange)
+                        .frame(width: 8, height: 2)
+                    Text("FatMax")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                }
+            }
+            
+            // FatMax value
+            HStack {
+                Text("FatMax Zone:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(fatMaxWatts)W")
+                    .font(.system(.subheadline, design: .monospaced))
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
+            }
+            
+            Text("Optimal fat burning intensity")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .cardStyle()
     }
 }

@@ -87,9 +87,16 @@ class ZonesManager: ObservableObject {
     }
     
     func loadSavedFTP() {
-        if let savedFTP = UserDefaults.standard.value(forKey: "user_ftp") as? Int {
-            ftp = savedFTP
+            if let savedFTP = UserDefaults.standard.value(forKey: "user_ftp") as? Int {
+                ftp = savedFTP
+                calculateZones()
+            }
+        }
+        
+        func updateThresholds(vt1: Int, vt2: Int) {
+            vt1Watts = vt1
+            vt2Watts = vt2
             calculateZones()
         }
     }
-}
+

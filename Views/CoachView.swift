@@ -92,6 +92,72 @@ struct TrainingFocusCard: View {
     @EnvironmentObject var zonesManager: ZonesManager
     @EnvironmentObject var stravaService: StravaService
     
+    var sprintAnalysis: (status: String, color: Color, suggestion: String) {
+        guard !stravaService.bestEfforts.isEmpty else {
+            return ("No data", .gray, "Sync with Strava first")
+        }
+        
+        let ftp = Double(zonesManager.ftp)
+        guard ftp > 0 else { return ("No FTP", .gray, "Set your FTP first") }
+        
+        // Get 5s power
+        let sprint = stravaService.bestEfforts.first { $0.duration == 5 }?.watts ?? 0
+        let ratio = Double(sprint) / ftp
+        
+        // Good sprinter: 5s > 5x FTP
+        if ratio > 5.0 {
+            return ("Strong", .green, "Maintain with weekly sprints")
+        } else if ratio > 4.0 {
+            return ("Average", .orange, "Add 2x weekly sprint intervals")
+        } else {
+            return ("Needs work", .red, "Focus on neuromuscular power")
+        }
+    }
+    
+    var anaerobicAnalysis: (status: String, color: Color, suggestion: String) {
+        guard !stravaService.bestEfforts.isEmpty else {
+            return ("No data", .gray, "Sync with Strava first")
+        }
+        
+        let ftp = Double(zonesManager.ftp)
+        guard ftp > 0 else { return ("No FTP", .gray, "Set your FTP first") }
+        
+        // Get 5min power
+        let vo2max = stravaService.bestEfforts.first { $0.duration == 300 }?.watts ?? 0
+        let ratio = Double(vo2max) / ftp
+        
+        // Good VO2max: 5min > 1.2x FTP
+        if ratio > 1.25 {
+            return ("Strong", .green, "Maintain VO2max capacity")
+        } else if ratio > 1.15 {
+            return ("Average", .orange, "Add VO2max intervals 2x/week")
+        } else {
+            return ("Needs work", .red, "Prioritize 3-5min intervals")
+        }
+    }
+    
+    var enduranceAnalysis: (status: String, color: Color, suggestion: String) {
+        guard !stravaService.bestEfforts.isEmpty else {
+            return ("No data", .gray, "Sync with Strava first")
+        }
+        
+        let ftp = Double(zonesManager.ftp)
+        guard ftp > 0 else { return ("No FTP", .gray, "Set your FTP first") }
+        
+        // Get 60min power
+        let endurance = stravaService.bestEfforts.first { $0.duration == 3600 }?.watts ?? 0
+        let ratio = Double(endurance) / ftp
+        
+        // Good endurance: 60min close to FTP (>0.85)
+        if ratio > 0.90 {
+            return ("Strong", .green, "Excellent endurance base")
+        } else if ratio > 0.80 {
+            return ("Average", .orange, "Add longer Z2 rides")
+        } else {
+            return ("Needs work", .red, "Build aerobic base with long rides")
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -100,33 +166,33 @@ struct TrainingFocusCard: View {
                 Spacer()
                 HelpButton(
                     title: "Training Focus",
-                    explanation: "Based on your power curve analysis, these are the areas where you can improve the most."
+                    explanation: "Analysis based on your power curve. Compares your efforts at different durations to your FTP to identify strengths and weaknesses."
                 )
             }
             
             VStack(alignment: .leading, spacing: 10) {
                 FocusRow(
                     icon: "flame.fill",
-                    color: .red,
-                    title: "Sprint Power (5-15s)",
-                    status: "Needs work",
-                    suggestion: "Add 2x weekly sprint intervals"
+                    color: sprintAnalysis.color,
+                    title: "Sprint Power (5s)",
+                    status: sprintAnalysis.status,
+                    suggestion: sprintAnalysis.suggestion
                 )
                 
                 FocusRow(
                     icon: "bolt.fill",
-                    color: .orange,
-                    title: "Anaerobic (1-5min)",
-                    status: "Average",
-                    suggestion: "VO2max intervals recommended"
+                    color: anaerobicAnalysis.color,
+                    title: "VO2max (5min)",
+                    status: anaerobicAnalysis.status,
+                    suggestion: anaerobicAnalysis.suggestion
                 )
                 
                 FocusRow(
                     icon: "heart.fill",
-                    color: .green,
-                    title: "Endurance (20min+)",
-                    status: "Strong",
-                    suggestion: "Maintain with long rides"
+                    color: enduranceAnalysis.color,
+                    title: "Endurance (60min)",
+                    status: enduranceAnalysis.status,
+                    suggestion: enduranceAnalysis.suggestion
                 )
             }
         }
@@ -185,7 +251,7 @@ struct ThresholdsCheckCard: View {
                 Spacer()
                 HelpButton(
                     title: "VT1 & VT2",
-                    explanation: "VT1 (aerobic threshold) and VT2 (anaerobic threshold) help define your training zones more precisely than FTP alone."
+                    explanation: "VT1 (First Ventilatory Threshold): The intensity where breathing first increases noticeably. You can still hold a conversation but it requires effort. Test: try reciting the first lines of Don Quixote without gasping. If you can't, you're above VT1. Sustainable for 2-4 hours.\n\nVT2 (Second Ventilatory Threshold): The intensity where lactate accumulates rapidly. Speaking becomes difficult - only short phrases possible. Sustainable for 20-40 minutes maximum.\n\nThese thresholds help define training zones more precisely than FTP alone."
                 )
             }
             
@@ -240,8 +306,6 @@ struct ThresholdRow: View {
 }
 struct RecentEffortsCard: View {
     @EnvironmentObject var stravaService: StravaService
-    @State private var isLoading = false
-    @State private var loadingMessage = ""
     @State private var showYearView = false
     
     var topEfforts: [BestEffort] {
@@ -264,16 +328,18 @@ struct RecentEffortsCard: View {
                 let timestamp = effort["date"] as? Double ?? 0
                 let date = Date(timeIntervalSince1970: timestamp)
                 
-                if bestByDuration[duration] == nil || watts > bestByDuration[duration]!.watts {
-                    let hrForDuration = effort["hrForDuration"] as? Int ?? 0
-                    bestByDuration[duration] = BestEffort(
-                        duration: duration,
-                        label: labels[duration]!,
-                        watts: watts,
-                        hr: hrForDuration,
-                        date: date,
-                        activityName: name
-                    )
+                if let durationLabel = labels[duration], watts > 0 {
+                    if bestByDuration[duration] == nil || watts > bestByDuration[duration]!.watts {
+                        let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                        bestByDuration[duration] = BestEffort(
+                            duration: duration,
+                            label: durationLabel,
+                            watts: watts,
+                            hr: hrForDuration,
+                            date: date,
+                            activityName: name
+                        )
+                    }
                 }
             }
             
@@ -308,53 +374,9 @@ struct RecentEffortsCard: View {
                 Toggle("", isOn: $showYearView)
                     .labelsHidden()
                     .scaleEffect(0.7)
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                } else {
-                    Menu {
-                        Button("Refresh (12 weeks)") {
-                            Task {
-                                isLoading = true
-                                loadingMessage = "Fetching activities..."
-                                UserDefaults.standard.removeObject(forKey: "power_curve_cache")
-                                UserDefaults.standard.removeObject(forKey: "best_efforts_cache")
-                                let _ = await stravaService.fetchPowerCurve()
-                                isLoading = false
-                                loadingMessage = ""
-                            }
-                        }
-                        
-                        Button("Load Full Year History") {
-                            Task {
-                                isLoading = true
-                                UserDefaults.standard.removeObject(forKey: "year_history_cache")
-                                let _ = await stravaService.fetchFullYearHistory { message in
-                                    Task { @MainActor in
-                                        loadingMessage = message
-                                    }
-                                }
-                                isLoading = false
-                                loadingMessage = ""
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(.orange)
-                    }
-                }
             }
             
-            if isLoading {
-                VStack(spacing: 8) {
-                    ProgressView()
-                    Text(loadingMessage)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-            } else if topEfforts.isEmpty {
+            if topEfforts.isEmpty {
                 Text("No power data available yet. Sync with Strava to see your best efforts.")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -536,33 +558,41 @@ struct HRByDurationCard: View {
     @State private var showYearView = true
     
     var hrByDuration: [(duration: String, durationSeconds: Int, hr: Int, activityName: String, date: Date)] {
-        guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
-            return []
-        }
-        
         let targetDurations: [Int: String] = [
             5: "5s", 60: "1m", 300: "5m", 600: "10m", 1200: "20m", 3600: "1h"
         ]
         
-        var bestByDuration: [Int: (hr: Int, name: String, date: Date)] = [:]
-        
-        for effort in history {
-            let duration = effort["duration"] as? Int ?? 0
-            let hrForDuration = effort["hrForDuration"] as? Int ?? 0
-            let name = effort["name"] as? String ?? "Unknown"
-            let timestamp = effort["date"] as? Double ?? 0
-            let date = Date(timeIntervalSince1970: timestamp)
+        if showYearView {
+            guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                return []
+            }
             
-            if hrForDuration > 0 && targetDurations[duration] != nil {
-                if bestByDuration[duration] == nil || hrForDuration > bestByDuration[duration]!.hr {
-                    bestByDuration[duration] = (hrForDuration, name, date)
+            var bestByDuration: [Int: (hr: Int, name: String, date: Date)] = [:]
+            
+            for effort in history {
+                let duration = effort["duration"] as? Int ?? 0
+                let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                let name = effort["name"] as? String ?? "Unknown"
+                let timestamp = effort["date"] as? Double ?? 0
+                let date = Date(timeIntervalSince1970: timestamp)
+                
+                if hrForDuration > 0 && targetDurations[duration] != nil {
+                    if bestByDuration[duration] == nil || hrForDuration > bestByDuration[duration]!.hr {
+                        bestByDuration[duration] = (hrForDuration, name, date)
+                    }
                 }
             }
+            
+            return bestByDuration
+                .sorted { $0.key < $1.key }
+                .map { (targetDurations[$0.key]!, $0.key, $0.value.hr, $0.value.name, $0.value.date) }
+        } else {
+            // 12 weeks view - use bestEfforts
+            return stravaService.bestEfforts
+                .filter { targetDurations[$0.duration] != nil && $0.hr > 0 }
+                .sorted { $0.duration < $1.duration }
+                .map { (targetDurations[$0.duration]!, $0.duration, $0.hr, $0.activityName, $0.date) }
         }
-        
-        return bestByDuration
-            .sorted { $0.key < $1.key }
-            .map { (targetDurations[$0.key]!, $0.key, $0.value.hr, $0.value.name, $0.value.date) }
     }
     
     var dateFormatter: DateFormatter {

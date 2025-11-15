@@ -13,6 +13,9 @@ struct CyclistProfileView: View {
                 VStack(spacing: 20) {
                     ProfilePhotoCard(profileImage: $profileImage, showImagePicker: $showImagePicker)
                     
+                    DataSyncCard()
+                        .environmentObject(stravaService)
+                    
                     CoreMetricsCard()
                         .environmentObject(userProfile)
                         .environmentObject(zonesManager)
@@ -194,6 +197,9 @@ struct CoreMetricsCard: View {
         vt2PowerText = "\(userProfile.vt2Power)"
         vt1HRText = "\(userProfile.vt1HR)"
         vt2HRText = "\(userProfile.vt2HR)"
+        
+        // Sync thresholds with ZonesManager
+        zonesManager.updateThresholds(vt1: userProfile.vt1Power, vt2: userProfile.vt2Power)
     }
     
     func saveMetrics() {
@@ -207,6 +213,10 @@ struct CoreMetricsCard: View {
         if let vt2Power = Int(vt2PowerText) { userProfile.vt2Power = vt2Power }
         if let vt1HR = Int(vt1HRText) { userProfile.vt1HR = vt1HR }
         if let vt2HR = Int(vt2HRText) { userProfile.vt2HR = vt2HR }
+        
+        // Sync thresholds with ZonesManager
+        zonesManager.updateThresholds(vt1: userProfile.vt1Power, vt2: userProfile.vt2Power)
+        
         userProfile.saveProfile()
     }
 }
@@ -434,3 +444,79 @@ struct SuggestionRow: View {
         }
     }
 }
+    struct DataSyncCard: View {
+        @EnvironmentObject var stravaService: StravaService
+        @State private var isLoading = false
+        @State private var loadingMessage = ""
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Data Sync")
+                        .font(.headline)
+                    Spacer()
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+                
+                if isLoading {
+                    Text(loadingMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    VStack(spacing: 8) {
+                        Button(action: {
+                            Task {
+                                isLoading = true
+                                loadingMessage = "Fetching last 12 weeks..."
+                                UserDefaults.standard.removeObject(forKey: "power_curve_cache")
+                                UserDefaults.standard.removeObject(forKey: "best_efforts_cache")
+                                let _ = await stravaService.fetchPowerCurve()
+                                isLoading = false
+                                loadingMessage = ""
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Refresh 12 Weeks")
+                                Spacer()
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                        }
+                        
+                        Button(action: {
+                            Task {
+                                isLoading = true
+                                UserDefaults.standard.removeObject(forKey: "year_history_cache")
+                                let _ = await stravaService.fetchFullYearHistory { message in
+                                    Task { @MainActor in
+                                        loadingMessage = message
+                                    }
+                                }
+                                isLoading = false
+                                loadingMessage = ""
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "calendar")
+                                Text("Load Full Year History")
+                                Spacer()
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                        }
+                    }
+                }
+                
+                Text("Last sync affects power curves, HR data, and training analysis")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(.gray.opacity(0.1))
+            .cornerRadius(16)
+        }
+    }
