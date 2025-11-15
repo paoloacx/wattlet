@@ -10,8 +10,9 @@ struct CoachView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // FTP Status Card
-                    FTPStatusCard()
+                      FTPStatusCard()
                         .environmentObject(zonesManager)
+                        .environmentObject(userProfile)
                     
                     // Training Focus Card
                     TrainingFocusCard()
@@ -43,10 +44,15 @@ struct CoachView: View {
 
 struct FTPStatusCard: View {
     @EnvironmentObject var zonesManager: ZonesManager
-    @State private var ftpTrend: String = "stable"
+    @EnvironmentObject var userProfile: UserProfile
+    @State private var showYearView = false
+    
+    var trendData: (trend: String, percentage: Double, message: String) {
+        showYearView ? userProfile.ftpTrend() : userProfile.ftpTrend12Weeks()
+    }
     
     var trendIcon: String {
-        switch ftpTrend {
+        switch trendData.trend {
         case "up": return "arrow.up.circle.fill"
         case "down": return "arrow.down.circle.fill"
         default: return "equal.circle.fill"
@@ -54,7 +60,7 @@ struct FTPStatusCard: View {
     }
     
     var trendColor: Color {
-        switch ftpTrend {
+        switch trendData.trend {
         case "up": return .green
         case "down": return .red
         default: return .yellow
@@ -67,10 +73,17 @@ struct FTPStatusCard: View {
                 Text("FTP Status")
                     .font(.headline)
                 Spacer()
+                Toggle("", isOn: $showYearView)
+                    .labelsHidden()
+                    .scaleEffect(0.7)
                 Image(systemName: trendIcon)
                     .foregroundColor(trendColor)
                     .font(.title2)
             }
+            
+            Text(showYearView ? "Year View" : "12 Weeks")
+                .font(.caption2)
+                .foregroundColor(.secondary)
             
             HStack(alignment: .firstTextBaseline) {
                 Text("\(zonesManager.ftp)")
@@ -80,7 +93,13 @@ struct FTPStatusCard: View {
                     .foregroundColor(.secondary)
             }
             
-            Text("Your FTP has been stable for the last 4 weeks. Consider an FTP test if you've been training consistently.")
+            if trendData.percentage != 0 {
+                Text("\(trendData.percentage > 0 ? "+" : "")\(String(format: "%.1f", trendData.percentage))% change")
+                    .font(.caption)
+                    .foregroundColor(trendColor)
+            }
+            
+            Text(trendData.message)
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -307,53 +326,97 @@ struct ThresholdRow: View {
 struct RecentEffortsCard: View {
     @EnvironmentObject var stravaService: StravaService
     @State private var showYearView = false
+    @State private var showTenValues = false
+    @State private var sortByDuration = false
+    
+    var targetDurations: [Int] {
+        if showTenValues {
+            return [5, 10, 30, 60, 300, 600, 1200, 3600, 7200, 14400]
+        } else {
+            return [5, 60, 300, 1200, 3600]
+        }
+    }
     
     var topEfforts: [BestEffort] {
-        if showYearView {
-            // Show best from year history
-            guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
-                return []
-            }
-            
-            var bestByDuration: [Int: BestEffort] = [:]
-            let labels: [Int: String] = [
-                5: "5s", 10: "10s", 30: "30s", 60: "1m", 120: "2m", 300: "5m",
-                600: "10m", 1200: "20m", 1800: "30m", 3600: "1h"
-            ]
-            
-            for effort in history {
-                let duration = effort["duration"] as? Int ?? 0
-                let watts = effort["watts"] as? Int ?? 0
-                let name = effort["name"] as? String ?? "Unknown"
-                let timestamp = effort["date"] as? Double ?? 0
-                let date = Date(timeIntervalSince1970: timestamp)
+        let labels: [Int: String] = [
+            5: "5s", 10: "10s", 30: "30s", 60: "1m", 120: "2m", 300: "5m",
+            600: "10m", 1200: "20m", 1800: "30m", 3600: "1h", 7200: "2h", 14400: "4h"
+        ]
+        
+        if sortByDuration {
+            // Best per duration mode - show #1 for each duration
+            if showYearView {
+                guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                    return []
+                }
                 
-                if let durationLabel = labels[duration], watts > 0 {
-                    if bestByDuration[duration] == nil || watts > bestByDuration[duration]!.watts {
-                        let hrForDuration = effort["hrForDuration"] as? Int ?? 0
-                        bestByDuration[duration] = BestEffort(
-                            duration: duration,
-                            label: durationLabel,
-                            watts: watts,
-                            hr: hrForDuration,
-                            date: date,
-                            activityName: name
-                        )
+                var bestByDuration: [Int: BestEffort] = [:]
+                
+                for effort in history {
+                    let duration = effort["duration"] as? Int ?? 0
+                    let watts = effort["watts"] as? Int ?? 0
+                    let name = effort["name"] as? String ?? "Unknown"
+                    let timestamp = effort["date"] as? Double ?? 0
+                    let date = Date(timeIntervalSince1970: timestamp)
+                    
+                    if let durationLabel = labels[duration], watts > 0, targetDurations.contains(duration) {
+                        if bestByDuration[duration] == nil || watts > bestByDuration[duration]!.watts {
+                            let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                            bestByDuration[duration] = BestEffort(
+                                duration: duration,
+                                label: durationLabel,
+                                watts: watts,
+                                hr: hrForDuration,
+                                date: date,
+                                activityName: name
+                            )
+                        }
                     }
                 }
+                
+                return bestByDuration.values.sorted { $0.duration < $1.duration }
+            } else {
+                return stravaService.bestEfforts
+                    .filter { $0.watts > 0 && targetDurations.contains($0.duration) }
+                    .sorted { $0.duration < $1.duration }
             }
-            
-            return bestByDuration.values
-                .sorted { $0.duration < $1.duration }
-                .prefix(5)
-                .map { $0 }
         } else {
-            // Show recent 12 weeks
-            return stravaService.bestEfforts
-                .filter { $0.watts > 0 }
-                .sorted { $0.date > $1.date }
-                .prefix(5)
-                .map { $0 }
+            // Most recent mode - show latest efforts for each duration
+            if showYearView {
+                guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                    return []
+                }
+                
+                var latestByDuration: [Int: BestEffort] = [:]
+                
+                for effort in history {
+                    let duration = effort["duration"] as? Int ?? 0
+                    let watts = effort["watts"] as? Int ?? 0
+                    let name = effort["name"] as? String ?? "Unknown"
+                    let timestamp = effort["date"] as? Double ?? 0
+                    let date = Date(timeIntervalSince1970: timestamp)
+                    
+                    if let durationLabel = labels[duration], watts > 0, targetDurations.contains(duration) {
+                        if latestByDuration[duration] == nil || date > latestByDuration[duration]!.date {
+                            let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                            latestByDuration[duration] = BestEffort(
+                                duration: duration,
+                                label: durationLabel,
+                                watts: watts,
+                                hr: hrForDuration,
+                                date: date,
+                                activityName: name
+                            )
+                        }
+                    }
+                }
+                
+                return latestByDuration.values.sorted { $0.date > $1.date }
+            } else {
+                return stravaService.bestEfforts
+                    .filter { $0.watts > 0 && targetDurations.contains($0.duration) }
+                    .sorted { $0.date > $1.date }
+            }
         }
     }
     
@@ -368,6 +431,19 @@ struct RecentEffortsCard: View {
             HStack {
                 Text(showYearView ? "Best Efforts (Year)" : "Recent Best Efforts")
                     .font(.headline)
+                
+                Menu {
+                    Button(showTenValues ? "Show 5 values" : "Show 10 values") {
+                        showTenValues.toggle()
+                    }
+                    Button(sortByDuration ? "Show most recent" : "Show best per duration") {
+                        sortByDuration.toggle()
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 
@@ -555,43 +631,88 @@ struct EffortRow: View {
     }
 struct HRByDurationCard: View {
     @EnvironmentObject var stravaService: StravaService
-    @State private var showYearView = true
+    @State private var showYearView = false
+    @State private var showTenValues = false
+    @State private var sortByDuration = false
+    
+    var targetDurations: [Int] {
+        if showTenValues {
+            return [5, 10, 30, 60, 300, 600, 1200, 3600, 7200, 14400]
+        } else {
+            return [5, 60, 300, 1200, 3600]
+        }
+    }
     
     var hrByDuration: [(duration: String, durationSeconds: Int, hr: Int, activityName: String, date: Date)] {
-        let targetDurations: [Int: String] = [
-            5: "5s", 60: "1m", 300: "5m", 600: "10m", 1200: "20m", 3600: "1h"
+        let labels: [Int: String] = [
+            5: "5s", 10: "10s", 30: "30s", 60: "1m", 120: "2m", 300: "5m",
+            600: "10m", 1200: "20m", 1800: "30m", 3600: "1h", 7200: "2h", 14400: "4h"
         ]
         
-        if showYearView {
-            guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
-                return []
-            }
-            
-            var bestByDuration: [Int: (hr: Int, name: String, date: Date)] = [:]
-            
-            for effort in history {
-                let duration = effort["duration"] as? Int ?? 0
-                let hrForDuration = effort["hrForDuration"] as? Int ?? 0
-                let name = effort["name"] as? String ?? "Unknown"
-                let timestamp = effort["date"] as? Double ?? 0
-                let date = Date(timeIntervalSince1970: timestamp)
+        if sortByDuration {
+            // Best per duration mode
+            if showYearView {
+                guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                    return []
+                }
                 
-                if hrForDuration > 0 && targetDurations[duration] != nil {
-                    if bestByDuration[duration] == nil || hrForDuration > bestByDuration[duration]!.hr {
-                        bestByDuration[duration] = (hrForDuration, name, date)
+                var bestByDuration: [Int: (hr: Int, name: String, date: Date)] = [:]
+                
+                for effort in history {
+                    let duration = effort["duration"] as? Int ?? 0
+                    let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                    let name = effort["name"] as? String ?? "Unknown"
+                    let timestamp = effort["date"] as? Double ?? 0
+                    let date = Date(timeIntervalSince1970: timestamp)
+                    
+                    if hrForDuration > 0 && targetDurations.contains(duration) {
+                        if bestByDuration[duration] == nil || hrForDuration > bestByDuration[duration]!.hr {
+                            bestByDuration[duration] = (hrForDuration, name, date)
+                        }
                     }
                 }
+                
+                return bestByDuration
+                    .sorted { $0.key < $1.key }
+                    .map { (labels[$0.key]!, $0.key, $0.value.hr, $0.value.name, $0.value.date) }
+            } else {
+                return stravaService.bestEfforts
+                    .filter { targetDurations.contains($0.duration) && $0.hr > 0 }
+                    .sorted { $0.duration < $1.duration }
+                    .map { (labels[$0.duration]!, $0.duration, $0.hr, $0.activityName, $0.date) }
             }
-            
-            return bestByDuration
-                .sorted { $0.key < $1.key }
-                .map { (targetDurations[$0.key]!, $0.key, $0.value.hr, $0.value.name, $0.value.date) }
         } else {
-            // 12 weeks view - use bestEfforts
-            return stravaService.bestEfforts
-                .filter { targetDurations[$0.duration] != nil && $0.hr > 0 }
-                .sorted { $0.duration < $1.duration }
-                .map { (targetDurations[$0.duration]!, $0.duration, $0.hr, $0.activityName, $0.date) }
+            // Most recent mode
+            if showYearView {
+                guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                    return []
+                }
+                
+                var latestByDuration: [Int: (hr: Int, name: String, date: Date)] = [:]
+                
+                for effort in history {
+                    let duration = effort["duration"] as? Int ?? 0
+                    let hrForDuration = effort["hrForDuration"] as? Int ?? 0
+                    let name = effort["name"] as? String ?? "Unknown"
+                    let timestamp = effort["date"] as? Double ?? 0
+                    let date = Date(timeIntervalSince1970: timestamp)
+                    
+                    if hrForDuration > 0 && targetDurations.contains(duration) {
+                        if latestByDuration[duration] == nil || date > latestByDuration[duration]!.date {
+                            latestByDuration[duration] = (hrForDuration, name, date)
+                        }
+                    }
+                }
+                
+                return latestByDuration
+                    .sorted { $0.value.date > $1.value.date }
+                    .map { (labels[$0.key]!, $0.key, $0.value.hr, $0.value.name, $0.value.date) }
+            } else {
+                return stravaService.bestEfforts
+                    .filter { targetDurations.contains($0.duration) && $0.hr > 0 }
+                    .sorted { $0.date > $1.date }
+                    .map { (labels[$0.duration]!, $0.duration, $0.hr, $0.activityName, $0.date) }
+            }
         }
     }
     
@@ -627,6 +748,19 @@ struct HRByDurationCard: View {
             HStack {
                 Text(showYearView ? "Best Avg HR (Year)" : "Best Avg HR (12 weeks)")
                     .font(.headline)
+                
+                Menu {
+                    Button(showTenValues ? "Show 5 values" : "Show 10 values") {
+                        showTenValues.toggle()
+                    }
+                    Button(sortByDuration ? "Show most recent" : "Show best per duration") {
+                        sortByDuration.toggle()
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 

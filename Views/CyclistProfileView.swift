@@ -14,9 +14,12 @@ struct CyclistProfileView: View {
                     ProfilePhotoCard(profileImage: $profileImage, showImagePicker: $showImagePicker)
                     
                     DataSyncCard()
-                        .environmentObject(stravaService)
-                    
-                    CoreMetricsCard()
+                            .environmentObject(stravaService)
+                                    
+                                FTPHistoryCard()
+                                    .environmentObject(userProfile)
+                                    
+                                CoreMetricsCard()
                         .environmentObject(userProfile)
                         .environmentObject(zonesManager)
                         .environmentObject(stravaService)
@@ -444,74 +447,183 @@ struct SuggestionRow: View {
         }
     }
 }
-    struct DataSyncCard: View {
-        @EnvironmentObject var stravaService: StravaService
-        @State private var isLoading = false
-        @State private var loadingMessage = ""
+struct DataSyncCard: View {
+    @EnvironmentObject var stravaService: StravaService
+    @State private var isLoading = false
+    @State private var loadingMessage = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Data Sync")
+                    .font(.headline)
+                Spacer()
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+            }
+            
+            if isLoading {
+                Text(loadingMessage)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                VStack(spacing: 8) {
+                    Button(action: {
+                        Task {
+                            isLoading = true
+                            loadingMessage = "Fetching last 12 weeks..."
+                            UserDefaults.standard.removeObject(forKey: "power_curve_cache")
+                            UserDefaults.standard.removeObject(forKey: "best_efforts_cache")
+                            let _ = await stravaService.fetchPowerCurve()
+                            isLoading = false
+                            loadingMessage = ""
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Refresh 12 Weeks")
+                            Spacer()
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                    }
+                    
+                    Button(action: {
+                        Task {
+                            isLoading = true
+                            UserDefaults.standard.removeObject(forKey: "year_history_cache")
+                            let _ = await stravaService.fetchFullYearHistory { message in
+                                Task { @MainActor in
+                                    loadingMessage = message
+                                }
+                            }
+                            isLoading = false
+                            loadingMessage = ""
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "calendar")
+                            Text("Load Full Year History")
+                            Spacer()
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                    }
+                }
+            }
+            
+            Text("Last sync affects power curves, HR data, and training analysis")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(.gray.opacity(0.1))
+                .cornerRadius(16)
+            }
+            }
+
+struct FTPHistoryCard: View {
+    @EnvironmentObject var userProfile: UserProfile
+    @State private var showAddEntry = false
+    @State private var newFTPValue = ""
+    @State private var newFTPDate = Date()
+    @State private var errorMessage = ""
+        
+        var dateFormatter: DateFormatter {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d, yyyy"
+            return formatter
+        }
         
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Data Sync")
+                    Text("FTP History")
                         .font(.headline)
                     Spacer()
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
+                    Button(action: { showAddEntry.toggle() }) {
+                        Image(systemName: showAddEntry ? "xmark.circle" : "plus.circle")
+                            .foregroundColor(.orange)
                     }
                 }
                 
-                if isLoading {
-                    Text(loadingMessage)
+                Toggle("Use auto-estimation", isOn: $userProfile.useAutoEstimation)
+                    .font(.caption)
+                    .onChange(of: userProfile.useAutoEstimation) { _ in
+                        userProfile.saveProfile()
+                    }
+                
+                if showAddEntry {
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("FTP:")
+                                .font(.caption)
+                            TextField("watts", text: $newFTPValue)
+                                .keyboardType(.numberPad)
+                                .frame(width: 80)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                            Text("W")
+                                .font(.caption)
+                        }
+                        
+                        DatePicker("Date:", selection: $newFTPDate, displayedComponents: .date)
+                            .font(.caption)
+                        
+                        Button("Add Entry") {
+                            if let value = Int(newFTPValue), value > 0 {
+                                let result = userProfile.addFTPEntry(value: value, date: newFTPDate)
+                                if result.success {
+                                    newFTPValue = ""
+                                    newFTPDate = Date()
+                                    showAddEntry = false
+                                    errorMessage = ""
+                                } else {
+                                    errorMessage = result.message
+                                }
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.orange)
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                if userProfile.ftpHistory.isEmpty {
+                    Text("No FTP history yet. Add your test results to track progress.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    VStack(spacing: 8) {
-                        Button(action: {
-                            Task {
-                                isLoading = true
-                                loadingMessage = "Fetching last 12 weeks..."
-                                UserDefaults.standard.removeObject(forKey: "power_curve_cache")
-                                UserDefaults.standard.removeObject(forKey: "best_efforts_cache")
-                                let _ = await stravaService.fetchPowerCurve()
-                                isLoading = false
-                                loadingMessage = ""
-                            }
-                        }) {
+                    VStack(spacing: 6) {
+                        ForEach(userProfile.ftpHistory.sorted { $0.date > $1.date }) { entry in
                             HStack {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Refresh 12 Weeks")
+                                Text(dateFormatter.string(from: entry.date))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                                 Spacer()
-                            }
-                            .font(.subheadline)
-                            .foregroundColor(.orange)
-                        }
-                        
-                        Button(action: {
-                            Task {
-                                isLoading = true
-                                UserDefaults.standard.removeObject(forKey: "year_history_cache")
-                                let _ = await stravaService.fetchFullYearHistory { message in
-                                    Task { @MainActor in
-                                        loadingMessage = message
-                                    }
+                                Text("\(entry.value) W")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .fontWeight(.semibold)
+                                Button(action: {
+                                    userProfile.removeFTPEntry(id: entry.id)
+                                }) {
+                                    Image(systemName: "trash")
+                                        .font(.caption2)
+                                        .foregroundColor(.red.opacity(0.7))
                                 }
-                                isLoading = false
-                                loadingMessage = ""
                             }
-                        }) {
-                            HStack {
-                                Image(systemName: "calendar")
-                                Text("Load Full Year History")
-                                Spacer()
-                            }
-                            .font(.subheadline)
-                            .foregroundColor(.orange)
                         }
                     }
                 }
                 
-                Text("Last sync affects power curves, HR data, and training analysis")
+                Text("Max 20 entries within 1 year")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
