@@ -11,27 +11,22 @@ struct CyclistProfileView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Profile Photo
                     ProfilePhotoCard(profileImage: $profileImage, showImagePicker: $showImagePicker)
                     
-                    // Core Metrics
                     CoreMetricsCard()
                         .environmentObject(userProfile)
                         .environmentObject(zonesManager)
+                        .environmentObject(stravaService)
                     
-                    // Cyclist Type Analysis
                     CyclistTypeCard()
                         .environmentObject(zonesManager)
                     
-                    // Strengths & Weaknesses
                     StrengthsCard()
                         .environmentObject(zonesManager)
                     
-                    // Training Plan
                     TrainingPlanCard()
                         .environmentObject(zonesManager)
                     
-                    // Strava Connection
                     StravaConnectionCard()
                         .environmentObject(stravaService)
                     
@@ -78,7 +73,9 @@ struct ProfilePhotoCard: View {
 struct CoreMetricsCard: View {
     @EnvironmentObject var userProfile: UserProfile
     @EnvironmentObject var zonesManager: ZonesManager
+    @EnvironmentObject var stravaService: StravaService
     @State private var isEditing = false
+    @State private var dismissedSuggestions = false
     
     @State private var ftpText = ""
     @State private var maxHRText = ""
@@ -121,6 +118,63 @@ struct CoreMetricsCard: View {
                     MetricDisplayRow(label: "Resting HR", value: "\(userProfile.restingHR) bpm")
                     MetricDisplayRow(label: "VT1", value: "\(userProfile.vt1Power) W / \(userProfile.vt1HR) bpm")
                     MetricDisplayRow(label: "VT2", value: "\(userProfile.vt2Power) W / \(userProfile.vt2HR) bpm")
+                }
+                
+                if let estimates = stravaService.estimateThresholds(), !dismissedSuggestions {
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Auto-Estimated Values")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Spacer()
+                            Button("Dismiss") {
+                                dismissedSuggestions = true
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        }
+                        
+                        if abs(estimates.ftp - zonesManager.ftp) > zonesManager.ftp / 20 {
+                            SuggestionRow(
+                                label: "FTP",
+                                current: "\(zonesManager.ftp) W",
+                                suggested: "\(estimates.ftp) W",
+                                onAccept: {
+                                    zonesManager.updateFTP(estimates.ftp)
+                                    userProfile.ftp = estimates.ftp
+                                    userProfile.saveProfile()
+                                }
+                            )
+                        }
+                        
+                        if abs(estimates.vt1Power - userProfile.vt1Power) > userProfile.vt1Power / 20 || userProfile.vt1Power == 0 {
+                            SuggestionRow(
+                                label: "VT1",
+                                current: userProfile.vt1Power > 0 ? "\(userProfile.vt1Power) W" : "Not set",
+                                suggested: "\(estimates.vt1Power) W / \(estimates.vt1HR) bpm",
+                                onAccept: {
+                                    userProfile.vt1Power = estimates.vt1Power
+                                    userProfile.vt1HR = estimates.vt1HR
+                                    userProfile.saveProfile()
+                                }
+                            )
+                        }
+                        
+                        if abs(estimates.vt2Power - userProfile.vt2Power) > userProfile.vt2Power / 20 || userProfile.vt2Power == 0 {
+                            SuggestionRow(
+                                label: "VT2",
+                                current: userProfile.vt2Power > 0 ? "\(userProfile.vt2Power) W" : "Not set",
+                                suggested: "\(estimates.vt2Power) W / \(estimates.vt2HR) bpm",
+                                onAccept: {
+                                    userProfile.vt2Power = estimates.vt2Power
+                                    userProfile.vt2HR = estimates.vt2HR
+                                    userProfile.saveProfile()
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -200,7 +254,6 @@ struct CyclistTypeCard: View {
     @EnvironmentObject var zonesManager: ZonesManager
     
     var cyclistType: String {
-        // Placeholder - would analyze power curve
         "All-Rounder"
     }
     
@@ -346,5 +399,38 @@ struct StravaConnectionCard: View {
         .padding()
         .background(.gray.opacity(0.1))
         .cornerRadius(16)
+    }
+}
+
+struct SuggestionRow: View {
+    let label: String
+    let current: String
+    let suggested: String
+    let onAccept: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button("Accept") {
+                    onAccept()
+                }
+                .font(.caption)
+                .foregroundColor(.orange)
+            }
+            
+            HStack {
+                            Text("Current: \(current)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("→ \(suggested)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+        }
     }
 }
