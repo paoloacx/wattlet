@@ -1,9 +1,18 @@
 import Foundation
 import Combine
 
+struct BestEffort: Codable {
+    let duration: Int
+    let label: String
+    let watts: Int
+    let date: Date
+    let activityName: String
+}
+
 class StravaService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var accessToken: String?
+    @Published var bestEfforts: [BestEffort] = []
     
     private let clientID = "185327"
     private let clientSecret = "a28a7fc2956047fc681d5a3f4ef78c9a7486c37f"
@@ -55,6 +64,7 @@ class StravaService: ObservableObject {
             accessToken = token
             isAuthenticated = true
         }
+        loadCachedBestEfforts()
     }
     
     func fetchAthleteProfile() async -> Int? {
@@ -79,7 +89,10 @@ class StravaService: ObservableObject {
     func fetchPowerCurve() async -> [PowerPoint]? {
         if let cached = loadCachedPowerCurve() {
             let cacheAge = Date().timeIntervalSince(cached.date)
-            if cacheAge < 86400 {
+            if cacheAge < 604800 {
+                return cached.data
+            }
+            if accessToken == nil {
                 return cached.data
             }
         }
@@ -95,22 +108,12 @@ class StravaService: ObservableObject {
         var activitiesRequest = URLRequest(url: activitiesURL)
         activitiesRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        var bestPowers: [Int: Int] = [
-            5: 0,
-            10: 0,
-            30: 0,
-            60: 0,
-            120: 0,
-            300: 0,
-            600: 0,
-            1200: 0,
-            1800: 0,
-            3600: 0,
-            7200: 0,
-            10800: 0,
-            14400: 0,
-            18000: 0,
-            21600: 0
+        var bestPowers: [Int: (watts: Int, date: Date, name: String)] = [
+            5: (0, Date(), ""), 10: (0, Date(), ""), 30: (0, Date(), ""),
+            60: (0, Date(), ""), 120: (0, Date(), ""), 300: (0, Date(), ""),
+            600: (0, Date(), ""), 1200: (0, Date(), ""), 1800: (0, Date(), ""),
+            3600: (0, Date(), ""), 7200: (0, Date(), ""), 10800: (0, Date(), ""),
+            14400: (0, Date(), ""), 18000: (0, Date(), ""), 21600: (0, Date(), "")
         ]
         
         do {
@@ -125,12 +128,16 @@ class StravaService: ObservableObject {
                     continue
                 }
                 
+                let activityName = activity["name"] as? String ?? "Unknown"
+                let activityDateString = activity["start_date"] as? String ?? ""
+                let activityDate = ISO8601DateFormatter().date(from: activityDateString) ?? Date()
+                
                 if let streamPowers = await fetchActivityStream(activityId: activityId) {
                     let activityBests = calculateBestPowers(from: streamPowers)
                     
                     for (duration, watts) in activityBests {
-                        if watts > bestPowers[duration]! {
-                            bestPowers[duration] = watts
+                        if watts > bestPowers[duration]!.watts {
+                            bestPowers[duration] = (watts, activityDate, activityName)
                         }
                     }
                 }
@@ -140,24 +147,30 @@ class StravaService: ObservableObject {
             return nil
         }
         
-        let result = [
-            PowerPoint(duration: 5, label: "5s", watts: bestPowers[5]!),
-            PowerPoint(duration: 10, label: "10s", watts: bestPowers[10]!),
-            PowerPoint(duration: 30, label: "30s", watts: bestPowers[30]!),
-            PowerPoint(duration: 60, label: "1m", watts: bestPowers[60]!),
-            PowerPoint(duration: 120, label: "2m", watts: bestPowers[120]!),
-            PowerPoint(duration: 300, label: "5m", watts: bestPowers[300]!),
-            PowerPoint(duration: 600, label: "10m", watts: bestPowers[600]!),
-            PowerPoint(duration: 1200, label: "20m", watts: bestPowers[1200]!),
-            PowerPoint(duration: 1800, label: "30m", watts: bestPowers[1800]!),
-            PowerPoint(duration: 3600, label: "1h", watts: bestPowers[3600]!),
-            PowerPoint(duration: 7200, label: "2h", watts: bestPowers[7200]!),
-            PowerPoint(duration: 10800, label: "3h", watts: bestPowers[10800]!),
-            PowerPoint(duration: 14400, label: "4h", watts: bestPowers[14400]!),
-            PowerPoint(duration: 18000, label: "5h", watts: bestPowers[18000]!),
-            PowerPoint(duration: 21600, label: "6h", watts: bestPowers[21600]!)
+        let labels = [
+            5: "5s", 10: "10s", 30: "30s", 60: "1m", 120: "2m", 300: "5m",
+            600: "10m", 1200: "20m", 1800: "30m", 3600: "1h", 7200: "2h",
+            10800: "3h", 14400: "4h", 18000: "5h", 21600: "6h"
         ]
         
+        var efforts: [BestEffort] = []
+        for (duration, data) in bestPowers {
+            efforts.append(BestEffort(
+                duration: duration,
+                label: labels[duration]!,
+                watts: data.watts,
+                date: data.date,
+                activityName: data.name
+            ))
+        }
+        efforts.sort { $0.duration < $1.duration }
+        
+        await MainActor.run {
+            self.bestEfforts = efforts
+        }
+        saveBestEffortsCache(efforts)
+        
+        let result = efforts.map { PowerPoint(duration: $0.duration, label: $0.label, watts: $0.watts) }
         savePowerCurveCache(result)
         
         return result
@@ -185,21 +198,9 @@ class StravaService: ObservableObject {
     
     private func calculateBestPowers(from watts: [Int]) -> [Int: Int] {
         var bests: [Int: Int] = [
-            5: 0,
-            10: 0,
-            30: 0,
-            60: 0,
-            120: 0,
-            300: 0,
-            600: 0,
-            1200: 0,
-            1800: 0,
-            3600: 0,
-            7200: 0,
-            10800: 0,
-            14400: 0,
-            18000: 0,
-            21600: 0
+            5: 0, 10: 0, 30: 0, 60: 0, 120: 0, 300: 0, 600: 0,
+            1200: 0, 1800: 0, 3600: 0, 7200: 0, 10800: 0,
+            14400: 0, 18000: 0, 21600: 0
         ]
         
         let durations = [5, 10, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200, 10800, 14400, 18000, 21600]
@@ -258,4 +259,119 @@ class StravaService: ObservableObject {
         
         return (Date(timeIntervalSince1970: timestamp), data)
     }
-}
+    
+    private func saveBestEffortsCache(_ efforts: [BestEffort]) {
+        if let encoded = try? JSONEncoder().encode(efforts) {
+            UserDefaults.standard.set(encoded, forKey: "best_efforts_cache")
+        }
+    }
+    
+    private func loadCachedBestEfforts() {
+            if let data = UserDefaults.standard.data(forKey: "best_efforts_cache"),
+               let efforts = try? JSONDecoder().decode([BestEffort].self, from: data) {
+                bestEfforts = efforts
+            }
+        }
+        
+        func fetchFullYearHistory(progressCallback: @escaping (String) -> Void) async -> Bool {
+            guard let token = accessToken else { return false }
+            
+            // Check if we already have year history
+            if UserDefaults.standard.data(forKey: "year_history_cache") != nil {
+                progressCallback("Year history already loaded")
+                return true
+            }
+            
+            let calendar = Calendar.current
+            let now = Date()
+            let oneYearAgo = calendar.date(byAdding: .year, value: -1, to: now)!
+            let after = Int(oneYearAgo.timeIntervalSince1970)
+            
+            progressCallback("Fetching activities from last year...")
+            
+            let activitiesURL = URL(string: "https://www.strava.com/api/v3/athlete/activities?after=\(after)&per_page=200")!
+            var activitiesRequest = URLRequest(url: activitiesURL)
+            activitiesRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            
+            var allEfforts: [[String: Any]] = [] // Store all efforts with dates
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(for: activitiesRequest)
+                guard let activities = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                    return false
+                }
+                
+                let powerActivities = activities.filter { $0["device_watts"] as? Bool == true }
+                progressCallback("Found \(powerActivities.count) activities with power data")
+                
+                for (index, activity) in powerActivities.enumerated() {
+                    guard let activityId = activity["id"] as? Int else { continue }
+                    
+                    let activityName = activity["name"] as? String ?? "Unknown"
+                    let activityDateString = activity["start_date"] as? String ?? ""
+                    let activityDate = ISO8601DateFormatter().date(from: activityDateString) ?? Date()
+                    let distance = activity["distance"] as? Double ?? 0 // meters
+                    let movingTime = activity["moving_time"] as? Int ?? 0 // seconds
+                    let calories = activity["calories"] as? Double ?? 0
+                    let avgSpeed = activity["average_speed"] as? Double ?? 0 // m/s
+                    let maxHR = activity["max_heartrate"] as? Int ?? 0
+                    let avgHR = activity["average_heartrate"] as? Int ?? 0
+
+                    print("Activity: \(activityName), MaxHR: \(maxHR), AvgHR: \(avgHR)")
+                    progressCallback("Processing \(index + 1)/\(powerActivities.count): \(activityName)")
+                    
+                    if let streamPowers = await fetchActivityStream(activityId: activityId) {
+                        let activityBests = calculateBestPowers(from: streamPowers)
+                        
+                        for (duration, watts) in activityBests where watts > 0 {
+                            allEfforts.append([
+                                "duration": duration,
+                                "watts": watts,
+                                "date": activityDate.timeIntervalSince1970,
+                                "name": activityName,
+                                "distance": distance,
+                                "movingTime": movingTime,
+                                "calories": calories,
+                                "avgSpeed": avgSpeed,
+                                "maxHR": maxHR,
+                                "avgHR": avgHR
+                            ])
+                        }
+                    }
+                }
+                
+                // Save year history
+                UserDefaults.standard.set(allEfforts, forKey: "year_history_cache")
+                progressCallback("Saved \(allEfforts.count) power records")
+                
+                return true
+            } catch {
+                print("Fetch year history error: \(error)")
+                return false
+            }
+        }
+        
+        func getHistoricalRank(for duration: Int, currentWatts: Int) -> (rank: Int, improvement: Double)? {
+            guard let history = UserDefaults.standard.array(forKey: "year_history_cache") as? [[String: Any]] else {
+                return nil
+            }
+            
+            let durationEfforts = history
+                .filter { $0["duration"] as? Int == duration }
+                .compactMap { $0["watts"] as? Int }
+                .sorted(by: >)
+            
+            guard !durationEfforts.isEmpty else { return nil }
+            
+            let rank = (durationEfforts.firstIndex(where: { currentWatts >= $0 }) ?? durationEfforts.count) + 1
+            
+            // Calculate improvement from previous best
+            var improvement = 0.0
+            if durationEfforts.count >= 2 && rank == 1 {
+                let previousBest = durationEfforts[1]
+                improvement = Double(currentWatts - previousBest) / Double(previousBest) * 100
+            }
+            
+            return (rank, improvement)
+        }
+    }

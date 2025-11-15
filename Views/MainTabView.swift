@@ -7,6 +7,12 @@ struct MainTabView: View {
     
     var body: some View {
         TabView {
+            CoachView()
+                .tabItem {
+                    Image(systemName: "figure.run")
+                    Text("Wattlet")
+                }
+            
             HomeView()
                 .tabItem {
                     Image(systemName: "bolt.fill")
