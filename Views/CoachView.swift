@@ -81,9 +81,9 @@ struct FTPStatusCard: View {
                     .font(.title2)
             }
             
-            Text(showYearView ? "Year View" : "12 Weeks")
+            Text(showYearView ? "Trend: Full Year" : "Trend: Last 12 Weeks")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(.orange)
             
             HStack(alignment: .firstTextBaseline) {
                 Text("\(zonesManager.ftp)")
@@ -93,19 +93,28 @@ struct FTPStatusCard: View {
                     .foregroundColor(.secondary)
             }
             
-            if trendData.percentage != 0 {
-                Text("\(trendData.percentage > 0 ? "+" : "")\(String(format: "%.1f", trendData.percentage))% change")
-                    .font(.caption)
-                    .foregroundColor(trendColor)
+            if !showYearView {
+                            let recent = userProfile.ftpTrendRecent()
+                            if recent.weeks > 0 && recent.percentage != trendData.percentage {
+                                HStack {
+                                    Text("Last \(recent.weeks) weeks:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(recent.percentage > 0 ? "+" : "")\(String(format: "%.1f", recent.percentage))%")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(recent.percentage > 0 ? .green : recent.percentage < 0 ? .red : .yellow)
+                                }
+                            }
+                        }
+
+                        Text(trendData.message)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .cardStyle()
+                }
             }
-            
-            Text(trendData.message)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .cardStyle()
-    }
-}
 
 struct TrainingFocusCard: View {
     @EnvironmentObject var zonesManager: ZonesManager

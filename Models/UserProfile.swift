@@ -142,7 +142,24 @@ class UserProfile: ObservableObject {
                 return ("stable", 0, "Stable over \(weeksSpan) weeks")
             }
         }
+    func ftpTrendRecent() -> (percentage: Double, weeks: Int) {
+            let sixWeeksAgo = Calendar.current.date(byAdding: .weekOfYear, value: -6, to: Date())!
+            let recentHistory = ftpHistory.filter { $0.date >= sixWeeksAgo }.sorted { $0.date > $1.date }
+            
+            guard recentHistory.count >= 2 else {
+                return (0, 0)
+            }
+            
+            let latest = recentHistory[0].value
+            let oldest = recentHistory[recentHistory.count - 1].value
+            let change = Double(latest - oldest) / Double(oldest) * 100
+            let weeks = Calendar.current.dateComponents([.weekOfYear], from: recentHistory.last!.date, to: recentHistory.first!.date).weekOfYear ?? 1
+            
+            return (change, weeks)
+        }
+    
     private func loadFTPHistory() {
+        
             if let data = UserDefaults.standard.data(forKey: "ftp_history"),
                let history = try? JSONDecoder().decode([FTPEntry].self, from: data) {
                 ftpHistory = history
